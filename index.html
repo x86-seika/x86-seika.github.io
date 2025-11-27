@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iOS 7 Weather Clone</title>
+    <!-- Load Tailwind CSS (assumed supported) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        /* Custom CSS for the iOS 7 'Vibrancy' effect */
+        .glass-blur {
+            background-color: rgba(255, 255, 255, 0.1);
+            /* CRITICAL: Ensure older WebKit supports the blur effect */
+            backdrop-filter: blur(10px) saturate(180%);
+            -webkit-backdrop-filter: blur(10px) saturate(180%);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.15); 
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Default background gradient (San Francisco - Night) */
+            background: linear-gradient(180deg, #2a2a72 0%, #009ffd 100%);
+            transition: background 1s ease-in-out;
+        }
+
+        /* The main temperature must be extremely thin and large */
+        .temp-main {
+            font-weight: 100; 
+            font-size: 8rem; 
+            line-height: 0.9;
+        }
+
+        /* Container for the swipeable pages - using WebKit prefixes for compatibility */
+        #weather-scroll-container {
+            height: 100%;
+            overflow-x: scroll;
+            /* Older WebKit required display: -webkit-box; but flex is safer */
+            display: flex;
+            
+            /* CRITICAL: Mandatory scroll snapping for native-like page behavior */
+            -webkit-scroll-snap-type: x mandatory;
+            scroll-snap-type: x mandatory;
+            scroll-behavior: smooth;
+        }
+
+        /* Each city page takes up the full viewport width and aligns to the start */
+        .city-page {
+            /* Prefixing flex properties for old Safari */
+            -webkit-flex: 0 0 100vw; 
+            flex: 0 0 100vw; 
+            
+            -webkit-scroll-snap-align: start;
+            scroll-snap-align: start;
+            padding: 1rem;
+            
+            /* Ensuring flex layout is supported */
+            display: -webkit-box;
+            display: flex;
+            -webkit-box-orient: vertical;
+            -webkit-flex-direction: column;
+            flex-direction: column;
+            -webkit-box-pack: justify;
+            -webkit-justify-content: space-between;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen text-white overflow-hidden">
+
+    <!-- Global Wrapper for Scroll Snap -->
+    <div id="weather-scroll-container">
+        <!-- Placeholder content is okay, but will be overwritten by JS on load -->
+        <div id="city-0" class="city-page"></div>
+        <div id="city-1" class="city-page"></div>
+        <div id="city-2" class="city-page"></div>
+        <div id="city-3" class="city-page"></div>
+    </div>
+
+    <script>
+        // All variables are converted to 'var' for ES5 compatibility
+        var weatherData = [
+            {
+                city: "San Francisco",
+                temp: "41°",
+                condition: "Clear",
+                highLow: "H:46° L:38°",
+                summary: "Mostly clear conditions will continue throughout the night.",
+                gradient: "linear-gradient(180deg, #2a2a72 0%, #009ffd 100%)", // Night Blue
+                hourly: [
+                    { time: "Now", icon: "🌙", temp: "41°" },
+                    { time: "1 AM", icon: "🌙", temp: "40°" },
+                    { time: "2 AM", icon: "☁️", temp: "39°" },
+                    { time: "3 AM", icon: "☁️", temp: "39°" },
+                    { time: "4 AM", icon: "☁️", temp: "39°" },
+                    { time: "5 AM", icon: "🌧️", temp: "38°" },
+                    { time: "6 AM", icon: "🌧️", temp: "39°" },
+                    { time: "7 AM", icon: "🌤️", temp: "41°" }
+                ],
+                daily: [
+                    { day: "Today", icon: "🌙", low: "38°", high: "46°" },
+                    { day: "FRI", icon: "🌤️", low: "39°", high: "51°" },
+                    { day: "SAT", icon: "☀️", low: "40°", high: "55°" }
+                ]
+            },
+            {
+                city: "New York",
+                temp: "34°",
+                condition: "Cloudy",
+                highLow: "H:37° L:30°",
+                summary: "It will remain overcast with a chance of light snow late tonight.",
+                gradient: "linear-gradient(180deg, #5c6770 0%, #a4b4c4 100%)", // Cloudy Gray
+                hourly: [
+                    { time: "Now", icon: "☁️", temp: "34°" },
+                    { time: "1 AM", icon: "☁️", temp: "32°" },
+                    { time: "2 AM", icon: "❄️", temp: "30°" },
+                    { time: "3 AM", icon: "❄️", temp: "30°" },
+                    { time: "4 AM", icon: "❄️", temp: "31°" },
+                    { time: "5 AM", icon: "☁️", temp: "32°" },
+                    { time: "6 AM", icon: "🌤️", temp: "33°" },
+                    { time: "7 AM", icon: "☀️", temp: "35°" }
+                ],
+                daily: [
+                    { day: "Today", icon: "☁️", low: "30°", high: "37°" },
+                    { day: "FRI", icon: "☀️", low: "31°", high: "45°" },
+                    { day: "SAT", icon: "☀️", low: "35°", high: "50°" }
+                ]
+            },
+            {
+                city: "Tokyo",
+                temp: "15°",
+                condition: "Rainy",
+                highLow: "H:18° L:12°",
+                summary: "Steady rain expected to last through the morning hours.",
+                gradient: "linear-gradient(180deg, #1f4068 0%, #162447 100%)", // Dark Rainy Blue
+                hourly: [
+                    { time: "Now", icon: "🌧️", temp: "15°" },
+                    { time: "1 PM", icon: "🌧️", temp: "14°" },
+                    { time: "2 PM", icon: "🌧️", temp: "14°" },
+                    { time: "3 PM", icon: "🌧️", temp: "15°" },
+                    { time: "4 PM", icon: "⛈️", temp: "16°" },
+                    { time: "5 PM", icon: "⛈️", temp: "17°" },
+                    { time: "6 PM", icon: "☔", temp: "18°" },
+                    { time: "7 PM", icon: "☔", temp: "16°" }
+                ],
+                daily: [
+                    { day: "Today", icon: "🌧️", low: "12°", high: "18°" },
+                    { day: "FRI", icon: "☁️", low: "14°", high: "22°" },
+                    { day: "SAT", icon: "🌤️", low: "15°", high: "25°" }
+                ]
+            },
+            {
+                city: "Matouš",
+                temp: "135°",
+                condition: "Matouš",
+                highLow: "H:142° L:129°",
+                summary: "Matouš Matouš Matouš Matouš Matouš Matouš Matouš Matouš.",
+                gradient: "linear-gradient(180deg, #8B0000 0%, #FF4500 100%)", // Dark Red / Orange for heat
+                hourly: [
+                    { time: "Matouš", icon: "🔥", temp: "135°" },
+                    { time: "Matouš", icon: "🔥", temp: "138°" },
+                    { time: "Matouš", icon: "☀️", temp: "140°" },
+                    { time: "Matouš", icon: "☀️", temp: "142°" },
+                    { time: "Matouš", icon: "🔥", temp: "139°" },
+                    { time: "Matouš", icon: "☀️", temp: "137°" },
+                    { time: "Matouš", icon: "🔥", temp: "135°" },
+                    { time: "Matouš", icon: "☀️", temp: "133°" }
+                ],
+                daily: [
+                    { day: "Matouš", icon: "🔥", low: "129°", high: "142°" },
+                    { day: "Matouš", icon: "☀️", low: "130°", high: "145°" },
+                    { day: "Matouš", icon: "🔥", low: "135°", high: "141°" }
+                ]
+            }
+        ];
+
+        var scrollContainer = document.getElementById('weather-scroll-container');
+        var body = document.body;
+        var pageIndicator; 
+        var numCities = weatherData.length;
+
+        // --- Helper Functions ---
+
+        /**
+         * Generates the HTML content for a single city's weather view.
+         * Note: Arrow functions and template literals are replaced with ES5 syntax.
+         */
+        function generateCityContent(data) {
+            // Using .map() and standard function, then joining via string concatenation
+            var hourlyHtml = data.hourly.map(function(item) {
+                return '<div class="flex flex-col items-center flex-shrink-0 w-12">' +
+                       '<span class="font-light text-sm">' + item.time + '</span>' +
+                       '<span class="text-2xl pt-1">' + item.icon + '</span>' +
+                       '<span class="font-light text-xl pt-1">' + item.temp + '</span>' +
+                       '</div>';
+            }).join('');
+
+            var dailyHtml = data.daily.map(function(item) {
+                return '<div class="flex justify-between items-center text-lg">' +
+                       '<span class="font-light w-1/4">' + item.day + '</span>' +
+                       '<span class="text-2xl w-1/4 text-center">' + item.icon + '</span>' +
+                       '<span class="font-light w-1/4 text-left">' + item.low + '</span>' +
+                       '<span class="font-medium w-1/4 text-right">' + item.high + '</span>' +
+                       '</div>';
+            }).join('');
+
+            // Full content block using string concatenation
+            return (
+                '<!-- Top Section: City and Current Temp -->' +
+                '<div class="flex flex-col items-center pt-8 space-y-2 flex-shrink-0">' +
+                    '<div class="text-3xl font-light tracking-wide city-name">' + data.city + '</div>' +
+                    '<div class="temp-main city-temp">' + data.temp + '</div>' +
+                    '<div class="text-xl font-medium city-condition">' + data.condition + '</div>' +
+                    '<!-- High/Low Today -->' +
+                    '<div class="text-lg font-normal pt-4 city-high-low">' +
+                        data.highLow +
+                    '</div>' +
+                '</div>' +
+
+                '<!-- Scrollable Forecast Section (The translucent card) -->' +
+                '<div class="flex-grow flex items-end min-h-0">' +
+                    '<div class="w-full glass-blur p-4 mb-2 shadow-xl">' +
+                        
+                        '<!-- Today\'s Summary Line (iOS 7 Style Text) -->' +
+                        '<div class="border-b border-white/20 pb-3 mb-3 text-sm font-light">' +
+                            '<p>' + data.summary + '</p>' +
+                        '</div>' +
+
+                        '<!-- Hourly Forecast (Horizontal Scroll) -->' +
+                        '<div class="flex overflow-x-scroll space-x-6 py-2 border-b border-white/20 mb-3 text-center">' +
+                            hourlyHtml +
+                        '</div>' +
+
+                        '<!-- Daily Forecast (Stacked) -->' +
+                        '<div class="space-y-4">' +
+                            dailyHtml +
+                        '</div>' +
+
+                    '</div>' +
+                '</div>'
+            );
+        }
+
+        /**
+         * Renders all city pages and their data.
+         */
+        function renderCityPages() {
+            var container = document.getElementById('weather-scroll-container');
+            container.innerHTML = ''; 
+
+            // Using standard for loop for safety, though forEach is widely supported
+            for (var index = 0; index < weatherData.length; index++) {
+                var data = weatherData[index];
+                var cityPage = document.createElement('div');
+                cityPage.id = 'city-' + index;
+                cityPage.className = 'city-page';
+                cityPage.innerHTML = generateCityContent(data);
+                container.appendChild(cityPage);
+            }
+            
+            // Fixed navigation bar HTML - using string concatenation
+            var fixedNavHtml = 
+                '<div id="bottom-nav" class="flex justify-between items-center flex-shrink-0 h-16 w-full px-4 fixed bottom-0 left-0 right-0 glass-blur" style="border-radius: 0; background-color: rgba(255, 255, 255, 0.05); border: none; border-top: 1px solid rgba(255, 255, 255, 0.2);">' +
+                    '<!-- Details Button (Mock) -->' +
+                    '<button class="text-2xl font-extralight opacity-80 hover:opacity-100 transition">' +
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ellipsis-circle"><circle cx="12" cy="12" r="10"/><path d="M17 12H17.01"/><path d="M12 12H12.01"/><path d="M7 12H7.01"/></svg>' +
+                    '</button>' +
+                    
+                    '<!-- Page Indicator (Dynamic Dots) -->' +
+                    '<div id="page-indicator-new" class="flex space-x-2">' +
+                        '<!-- Dots will be generated here by JS -->' +
+                    '</div>' +
+
+                    '<!-- List Button (Mock) -->' +
+                    '<button class="text-2xl font-extralight opacity-80 hover:opacity-100 transition">' +
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-menu"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>' +
+                    '</button>' +
+                '</div>';
+            
+            var existingNav = document.getElementById('bottom-nav');
+            if (existingNav) {
+                existingNav.parentNode.removeChild(existingNav);
+            }
+            document.body.insertAdjacentHTML('beforeend', fixedNavHtml);
+            
+            // Update the global pageIndicator reference
+            pageIndicator = document.getElementById('page-indicator-new');
+        }
+
+        /**
+         * Updates the background gradient and dot indicator based on the current city.
+         */
+        function updateUI(cityIndex) {
+            var data = weatherData[cityIndex];
+            if (!pageIndicator) return; 
+
+            var indicators = pageIndicator.children;
+
+            // 1. Update Background Gradient
+            body.style.background = data.gradient;
+
+            // 2. Update Page Indicators
+            for (var i = 0; i < indicators.length; i++) {
+                if (i === cityIndex) {
+                    // Current page: solid white dot
+                    indicators[i].className = 'h-2 w-2 bg-white rounded-full transition-all duration-300';
+                } else {
+                    // Other pages: translucent white dot
+                    indicators[i].className = 'h-2 w-2 bg-white/40 rounded-full transition-all duration-300';
+                }
+            }
+        }
+
+        /**
+         * Sets up the initial page indicators (dots)
+         */
+        function setupPageIndicators() {
+            // Clear existing dots if any
+            pageIndicator.innerHTML = '';
+            for (var i = 0; i < numCities; i++) {
+                var dot = document.createElement('div');
+                dot.className = 'h-2 w-2 bg-white/40 rounded-full'; 
+                pageIndicator.appendChild(dot);
+            }
+        }
+
+        // --- Event Listener for Scroll ---
+
+        var scrollTimeout;
+        // Using standard function instead of arrow function
+        scrollContainer.addEventListener('scroll', function() {
+            // Debounce the scroll event
+            clearTimeout(scrollTimeout);
+            // Using standard function instead of arrow function
+            scrollTimeout = setTimeout(function() {
+                // Calculate which page is currently in view
+                var scrollLeft = scrollContainer.scrollLeft;
+                var clientWidth = scrollContainer.clientWidth;
+                // Determine the current index (rounding to the nearest whole page)
+                var currentPage = Math.max(0, Math.round(scrollLeft / clientWidth));
+                updateUI(currentPage);
+            }, 100); // 100ms debounce
+        });
+
+        // --- Initialization ---
+        window.onload = function() {
+            renderCityPages();
+            setupPageIndicators();
+            // Initial update for the first city (index 0)
+            updateUI(0);
+        };
+
+    </script>
+</body>
+</html>
